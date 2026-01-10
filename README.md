@@ -1,5 +1,5 @@
 # NeuralSketch2Surf
-# 修改测试
+
 ## Overview
 
 This repository provides a pipeline for 3D mesh reconstruction based on input sketches. It extensively uses the **Swin Transformer's U-Net** architecture and refinementNet for volumetric reconstruction and refinement, with additional functionalities for creating synthetic datasets through voxelization and geodesic curve computation.
