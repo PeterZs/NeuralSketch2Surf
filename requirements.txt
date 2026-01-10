@@ -1,0 +1,36 @@
+# Core Machine Learning & Deep Learning
+torch==2.8.0
+torchvision==0.23.0
+torchaudio==2.8.0
+pytorch-lightning==2.6.0
+monai==1.5.1
+metrics==1.8.2  # torchmetrics
+
+# 3D Processing & Geometry
+open3d==0.19.0
+trimesh==4.10.1
+polyscope==2.5.0
+openmesh==1.2.1
+# Note: 'igl' (libigl) often requires conda, but try pip if available
+igl==2.6.1 
+
+# Scientific Computing & Data Processing
+numpy==1.26.4
+scipy==1.13.1
+pandas==2.3.3
+scikit-learn==1.6.1
+scikit-image==0.24.0
+networkx==3.2.1
+
+# Visualization & Logging
+matplotlib==3.9.4
+plotly==6.5.0
+wandb==0.23.1
+weave==0.52.17
+tqdm==4.67.1
+
+# Configuration & Utilities
+configargparse==1.7.1
+imageio==2.37.0
+pillow==11.3.0
+pyyaml==6.0.3
