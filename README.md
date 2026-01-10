@@ -35,6 +35,7 @@ The 3D mesh models used in this project are available from the following dataset
 - [Peking University's 15-Class 3D Model Dataset](https://www.icst.pku.edu.cn/zlian/representa/3d15/dataset/index.htm): Offers 3D meshes with annotations for various tasks like part segmentation, classification, etc.
 
 Make sure to acquire datasets from the above links and place them appropriately in the `Data/` folder as outlined below.
+
 It is worth noting that this project did not utilize all the 3D models from the aforementioned links. We made a selection.
 ---
 
