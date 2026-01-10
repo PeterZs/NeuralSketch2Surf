@@ -67,7 +67,7 @@ You can install the dependencies using the provided requirements file:
 
 ```bash
 pip install -r requirements.txt
-
+```
 
 ## Usage
 
