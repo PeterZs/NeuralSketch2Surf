@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class RefinementBlock(nn.Module):
-    """标准的 3D 残差块"""
+    """3D Residual Block"""
     def __init__(self, channels):
         super().__init__()
         self.conv1 = nn.Conv3d(channels, channels, kernel_size=3, padding=1)
@@ -27,26 +27,27 @@ class RefinementNet(nn.Module):
     def __init__(self, in_channels=1, hidden_dim=32, num_blocks=3):
         super().__init__()
         
-        # 1. 升维提取特征
+        # Feature extraction through dimensionality expansion
         self.head = nn.Sequential(
             nn.Conv3d(in_channels, hidden_dim, kernel_size=3, padding=1),
             nn.InstanceNorm3d(hidden_dim),
             nn.LeakyReLU(0.2, inplace=True)
         )
         
-        # 2. 堆叠残差块 (去噪核心)
+        # Stacked residual blocks
         self.body = nn.Sequential(
             *[RefinementBlock(hidden_dim) for _ in range(num_blocks)]
         )
         
-        # 3. 降维预测修正值
+        # Dimension Reduction Prediction Correction Value
         self.tail = nn.Conv3d(hidden_dim, 1, kernel_size=3, padding=1)
 
     def forward(self, x):
-        # x: 来自 SwinUNETR 的粗糙 logits
+        # x: coarse logits from SwinUNETR
         feat = self.head(x)
         feat = self.body(feat)
         correction = self.tail(feat)
         
-        # 输出 = 原始粗糙结果 + 修正值
+        # Output = coarse logits + Correction value
+
         return x + correction
