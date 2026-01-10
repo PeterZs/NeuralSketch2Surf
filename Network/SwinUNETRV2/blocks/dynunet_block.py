@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from layers import get_norm_layer, get_act_layer
-from utils import ensure_tuple_rep
+from .layers import get_norm_layer, get_act_layer
+from .utils import ensure_tuple_rep
 
 class UnetBasicBlock(nn.Module):
     def __init__(self, spatial_dims, in_channels, out_channels, kernel_size, stride, norm_name, act_name="leakyrelu"):
