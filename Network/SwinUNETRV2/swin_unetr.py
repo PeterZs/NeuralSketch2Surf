@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from utils import look_up_option, ensure_tuple_rep
-from blocks.swin_transformer import SwinTransformer
-from blocks.dynunet_block import UnetOutBlock, UnetResBlock, UnetUpBlock
-from layers import get_norm_layer
+from .utils import look_up_option, ensure_tuple_rep
+from .blocks.swin_transformer import SwinTransformer
+from .blocks.dynunet_block import UnetOutBlock, UnetResBlock, UnetUpBlock
+from .layers import get_norm_layer
 
 class SwinUNETR(nn.Module):
     """
