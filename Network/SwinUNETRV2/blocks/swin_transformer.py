@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from .utils import ensure_tuple_rep
-from .layers import get_act_layer, get_norm_layer
+from ..utils import ensure_tuple_rep
+from ..layers import get_act_layer, get_norm_layer
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer="gelu", drop=0.0):
