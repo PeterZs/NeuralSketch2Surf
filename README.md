@@ -76,7 +76,7 @@ pip install -r requirements.txt
 Use the `SyntheticData/pipeline.py` script to prepare the geodesics and voxelized datasets:
 
 ```bash
-python SyntheticData/pipeline.py --n_curves 25 --len_percent 80
+python SyntheticData/pipeline.py --n_curves 25 --len_percent 80 --farthest
 ```
 
 ### 2. Train the Model
