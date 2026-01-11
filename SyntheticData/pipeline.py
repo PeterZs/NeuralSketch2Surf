@@ -6,6 +6,7 @@
 from __future__ import annotations
 import os
 import argparse
+import sys
 from pathlib import Path
 import numpy as np
 import openmesh as om
@@ -32,10 +33,13 @@ MARGIN = 1.1
 random.seed(42)
 np.random.seed(42)
 
-def get_param_suffix(n_curves, len_percent):
-    """Generate parameter suffix, e.g., _N5_L150"""
+def get_param_suffix(n_curves, len_percent, use_farthest):
+    """Generate parameter suffix, e.g., _N5_L150_farthest"""
     len_str = f"{int(len_percent)}" if len_percent.is_integer() else f"{len_percent}"
-    return f"_N{n_curves}_L{len_str}"
+    suffix = f"_N{n_curves}_L{len_str}"
+    if use_farthest:
+        suffix += "_farthest"
+    return suffix
 
 def save_curves_as_obj(filename, curves, normals):
     with open(filename, "w") as f:
@@ -73,11 +77,15 @@ def compute_geodesics_to_obj(mesh_path: Path, out_obj_path: Path,
             fh, heh, lmbda, theta, P = initGeodesic(mesh, mesh_vertices, mesh_face_indices, faces_with_points)
         except ValueError:
             continue
+        except Exception as e:
+            print(f"Error in initGeodesic: {e}")
+            continue
 
         faces_with_points.add(fh.idx())
         polyLine = [np.array(P)]
         polyNormals = []
         
+        # Calculate the interpolation of the starting point normal
         nA = np.array(mesh.normal(mesh.from_vertex_handle(heh)))
         nB = np.array(mesh.normal(mesh.to_vertex_handle(heh)))
         start_n = (1.0 - lmbda) * nA + lmbda * nB
@@ -185,6 +193,7 @@ def stage3_voxelize_geodesic(geo_dir: Path, meta_dir: Path, out_vox_geo_dir: Pat
         meta_path = meta_dir / f"{name_part}_meta{param_suffix}.npz"
         out_vox_path = out_vox_geo_dir / f"{name_part}_voxelize_geodesic{param_suffix}.npy"
 
+        # Resumable Transfer Detection
         if out_vox_path.exists():
             print(f"[3/3] ({i}/{len(geo_files)}) Skip (Exists): {out_vox_path.name}")
             continue
@@ -200,24 +209,34 @@ def stage3_voxelize_geodesic(geo_dir: Path, meta_dir: Path, out_vox_geo_dir: Pat
         except Exception as e:
             print(f"[ERR] Failed: {geo_path.name} -> {e}")
 
-# ================= Main =================
+
+# Main
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Geodesic Voxelization Pipeline")
-    parser.add_argument("--n_curves", type=int, default=25, help="Number of geodesic curves per mesh")
-    parser.add_argument("--len_percent", type=float, default=80.0, help="Curve length as percentage of diagonal")
+    parser.add_argument("--n_curves", type=int, default=40, 
+                        help="Number of geodesic curves per mesh (default: 130)")
+    parser.add_argument("--len_percent", type=float, default=35.0, 
+                        help="Curve length as percentage of diagonal (default: 20.0)")
+    parser.add_argument("--farthest", action="store_true", 
+                        help="Use farthest point sampling for geodesic initialization")
     
     args = parser.parse_args()
+    
+    if args.farthest:
+        if "-farthest" not in sys.argv:
+            sys.argv.append("-farthest")
 
     n_curves_val = args.n_curves
     len_percent_val = args.len_percent
+    use_farthest_val = args.farthest
     
-    current_suffix = get_param_suffix(n_curves_val, len_percent_val)
+    current_suffix = get_param_suffix(n_curves_val, len_percent_val, use_farthest_val)
 
     if not INPUT_MESH_DIR.exists():
         raise SystemExit(f"Input directory does not exist: {INPUT_MESH_DIR}")
 
     print("=== Pipeline Started ===")
-    print(f"Config: N_CURVES={n_curves_val}, LEN_PERCENT={len_percent_val}")
+    print(f"Config: N_CURVES={n_curves_val}, LEN_PERCENT={len_percent_val}, FARTHEST={use_farthest_val}")
     print(f"Current File Suffix: {current_suffix}")
 
     # Step 1
