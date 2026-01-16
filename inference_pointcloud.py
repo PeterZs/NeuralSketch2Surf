@@ -211,9 +211,9 @@ class InferenceEngine:
 # main
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", type=str, default="/home/ids/asureshk-22/Hongsheng/checkpoint/best_model_jit_gpu.pt")
-    parser.add_argument("--input_dir", type=str, default="/home/ids/asureshk-22/Hongsheng/SwinUNETRV2/pointcloud")
-    parser.add_argument("--output_dir", type=str, default="./test_pointcloud")
+    parser.add_argument("--model_path", type=str, required=True, help="Path to the trained model (.pt or .ckpt)")
+    parser.add_argument("--input_dir", type=str, required=True, help="Directory containing input point cloud OBJ files")
+    parser.add_argument("--output_dir", type=str, required=True, help="Directory to save reconstructed meshes and data")
     parser.add_argument("--threshold", type=float, default=0.5, help="Surface threshold")
     parser.add_argument("--img_size", type=int, default=112, help="Voxel resolution")
     parser.add_argument("--feature_size", type=int, default=24, help="Feature size used in training")
