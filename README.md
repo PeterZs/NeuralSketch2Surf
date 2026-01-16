@@ -18,6 +18,7 @@ The file [Network/SwinUNETRV2/blocks/dynunet_block.py] contains a custom impleme
 ## Result
 
 ![Handdrawn Result](Tools/image/handdrawn.png)
+![SurfaceBrush](Tools/image/SurfaceBrush.png)
 ![Results generated across various existing datasets](Tools/image/Results.png)
 
 
