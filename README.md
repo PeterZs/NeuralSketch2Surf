@@ -8,7 +8,7 @@ We introduce NeuralS-ketch2Surf, the first fast and robust neural surfacing solu
 
 ## Architecture
 
-![Architecture](Tools/image/Architecture.jpg)
+![Architecture](Tools/image/Architecture.png)
 
 
 #### Modified Bilinear-Based Upsampling
