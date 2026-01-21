@@ -111,3 +111,24 @@ Perform predictions on unseen `.obj` files and save reconstructed meshes:
 python inference.py --model_path checkpoints/best_model.ckpt --input_dir your_input_dir --output_dir results --threshold 0.6
 ```
 
+
+### 4.Mesh Smoother
+Smooth, align and repair the 3D reconstruction mesh:
+![smooth](Tools/image/smooth.png)
+
+(1)Run the script by specifying the skeleton file and the mesh file:
+
+```bash
+python smooth.py skeleton.obj mesh.obj
+```
+
+(2) Edit the skeleton_path and mesh_path variables at the bottom of the script, then run:
+
+```bash
+python smooth.py
+```
+#### User Guide
+Fidelity vs Smooth: Drag left (0.0) for a smoother shape or right (1.0) for a tighter fit to the skeleton.
+Take Custom Screenshot: Captures the current view and saves it as a .png image in the script's directory.
+Reset Rotation/Position: Reverts the mesh to its original location if you want to undo manual movements.
+Export & Repair Mesh: Applies your changes, automatically heals geometry errors (holes/normals), and saves the file as _smooth.obj.
