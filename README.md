@@ -114,9 +114,10 @@ python inference.py --model_path checkpoints/best_model.ckpt --input_dir your_in
 
 ### 4.Mesh Smoother
 Smooth, align and repair the 3D reconstruction mesh:
+
 ![smooth](Tools/image/smooth.png)
 
-(1)Run the script by specifying the skeleton file and the mesh file:
+(1) Run the script by specifying the skeleton file and the mesh file:
 
 ```bash
 python smooth.py skeleton.obj mesh.obj
