@@ -129,7 +129,7 @@ python smooth.py skeleton.obj mesh.obj
 python smooth.py
 ```
 #### User Guide
-Fidelity vs Smooth: Drag left (0.0) for a smoother shape or right (1.0) for a tighter fit to the skeleton.
-Take Custom Screenshot: Captures the current view and saves it as a .png image in the script's directory.
-Reset Rotation/Position: Reverts the mesh to its original location if you want to undo manual movements.
-Export & Repair Mesh: Applies your changes, automatically heals geometry errors (holes/normals), and saves the file as _smooth.obj.
+**Fidelity vs Smooth:** Drag left (0.0) for a smoother shape or right (1.0) for a tighter fit to the skeleton.
+**Take Custom Screenshot:** Captures the current view and saves it as a .png image in the script's directory.
+**Reset Rotation/Position:** Reverts the mesh to its original location if you want to undo manual movements.
+**Export & Repair Mesh:** Apply your changes and save the file as _smooth.obj.
