@@ -44,7 +44,7 @@ Amal Dev Parakkat<sup>1</sup>
 
 NeuralSketch2Surf reconstructs smooth, closed surfaces from sparse and unoriented 3D sketches. The method predicts a volumetric occupancy proxy with S2V-Net, extracts a mesh using Marching Cubes, and provides an interactive fidelity-vs-smoothness control for the final surface. The full pipeline is designed for interactive use, producing results in around 0.6 seconds in the paper examples and under 2 seconds across tested inputs.
 
-![NeuralSketch2Surf results](tools/image/handdrawn.png)
+![NeuralSketch2Surf results](tools/image/UpdatedResults.png)
 
 ## Highlights
 
