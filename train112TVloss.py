@@ -1,9 +1,3 @@
-"""Training entry point for NeuralSketch2Surf.
-
-The model learns a sketch-to-occupancy mapping on paired sparse sketch voxels
-and filled target volumes. The training split is object-level to evaluate
-generalization to unseen shapes rather than memorization of sketch variants.
-"""
 import os
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import argparse

@@ -1,8 +1,5 @@
-"""Inference utility for point-only OBJ inputs.
-
-This is an auxiliary baseline/debug path for inputs that contain vertices but
-no curve connectivity. It shares the S2V-Net reconstruction stage with the main
-curve-sketch inference scripts.
+"""
+    Inference utility for point-only OBJ inputs.
 """
 import os
 import glob

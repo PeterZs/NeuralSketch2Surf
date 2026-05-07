@@ -1,7 +1,5 @@
-"""UNet decoder blocks used by the modified SwinUNETR backbone.
-
-The upsampling block intentionally uses interpolation before convolution to
-produce smoother feature fields for sparse sketch inputs.
+"""
+    UNet Decoder Module.
 """
 import torch
 import torch.nn as nn

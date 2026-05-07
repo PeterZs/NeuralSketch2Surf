@@ -1,7 +1,5 @@
-"""Interactive fidelity-vs-smoothness mesh post-processing.
-
-The network predicts a voxel-derived proxy mesh; this tool lets users blend
-between a smoother state and a sketch-adherent state while preserving topology.
+"""
+Interactive fidelity-vs-smoothness mesh post-processing.
 """
 import numpy as np
 import igl

@@ -1,1 +1,1 @@
-"""Attention and UNet blocks for the SwinUNETR V2 backbone."""
+"""Attention and UNet blocks for the S2V-Net backbone."""

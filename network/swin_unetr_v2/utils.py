@@ -1,9 +1,8 @@
-"""Utility functions shared by the standalone SwinUNETR implementation."""
 import collections.abc
 from itertools import repeat
 
 def ensure_tuple_rep(t, repeat_nr):
-    """Broadcast scalars to tuples while validating explicit sequences."""
+    """Broadcast scalars to tuples"""
     if isinstance(t, str):
         return (t,) * repeat_nr
     

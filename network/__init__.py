@@ -1,1 +1,1 @@
-"""Model modules for NeuralSketch2Surf."""
+"""Model modules for SV2-net."""

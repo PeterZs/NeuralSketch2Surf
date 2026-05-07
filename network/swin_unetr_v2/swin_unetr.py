@@ -1,4 +1,3 @@
-"""Modified 3D SwinUNETR backbone for sketch-to-voxel prediction."""
 import torch
 import torch.nn as nn
 

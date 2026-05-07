@@ -1,9 +1,3 @@
-"""Batch inference for curve-based 3D sketch inputs.
-
-This script mirrors the paper pipeline used at test time: voxelize an
-unoriented OBJ sketch, predict an occupancy field with S2V-Net, and extract a
-mesh with Marching Cubes.
-"""
 import os
 import glob
 import argparse
@@ -58,7 +52,7 @@ def bresenham3d(p0, p1):
 
 
 def parse_obj_robust(obj_path):
-    """Read OBJ vertices and treat both line and face elements as sketch edges."""
+    """Read OBJ vertices and recover sketch edges from line or face elements."""
     verts, edges = [], []
     with open(obj_path, 'r') as f:
         for line in f:
@@ -77,7 +71,7 @@ def parse_obj_robust(obj_path):
     return np.array(verts), edges
 
 def compute_alignment_params(verts, resolution=112, margin=1.1):
-    """Normalize a sketch into the canonical cube used by the network."""
+    """Compute the normalization shared by voxelization and mesh recovery."""
     if len(verts) == 0: return None
 
     vmin = verts.min(axis=0)
@@ -106,7 +100,7 @@ def compute_alignment_params(verts, resolution=112, margin=1.1):
     }
 
 def voxelize_strict_aligned(obj_path, resolution=112, margin=1.1):
-    """Convert an OBJ sketch to a sparse binary voxel grid."""
+    """Convert a sketch OBJ to a network-ready occupancy tensor."""
     verts, edges = parse_obj_robust(obj_path)
     if len(verts) == 0: return None, None
     
@@ -136,7 +130,7 @@ def voxelize_strict_aligned(obj_path, resolution=112, margin=1.1):
 
 
 class InferenceEngine:
-    """Load a trained model and reconstruct meshes from sketch files."""
+    """Run S2V-Net inference and export reconstructed meshes."""
     def __init__(self, model_path, device='cuda', img_size=112, feature_size=24):
         self.device = torch.device(device)
         print(f"Loading model from: {model_path}")
@@ -163,7 +157,7 @@ class InferenceEngine:
         self.model.to(self.device)
 
     def process_and_save(self, obj_path, save_obj_path, save_npz_path, resolution=112, threshold=0.6, margin=1.1):
-        """Run voxelization, network inference, Marching Cubes, and metadata export."""
+        """Process one sketch and save the mesh plus reconstruction metadata."""
         t_start = time.time()
         
         input_np, params = voxelize_strict_aligned(obj_path, resolution, margin)
@@ -251,8 +245,16 @@ if __name__ == "__main__":
     
     os.makedirs(args.output_dir, exist_ok=True)
     
+    if torch.cuda.is_available():
+        device_str = "cuda"
+    else:
+        device_str = "cpu"
+        
+    print(f"Using device: {device_str.upper()}")
+
     engine = InferenceEngine(
         args.model_path, 
+        device=device_str,
         img_size=args.img_size, 
         feature_size=args.feature_size
     )

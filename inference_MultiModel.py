@@ -1,7 +1,5 @@
-"""Inference helper for sketches with multiple disconnected components.
-
-This variant preserves normalized input curves and keeps multiple sufficiently
-large mesh components after Marching Cubes.
+"""
+    Supports inference across multiple objects
 """
 import os
 import glob

@@ -1,7 +1,5 @@
-"""3D Swin Transformer blocks used by the S2V-Net backbone.
-
-This standalone implementation keeps the windowed-attention structure of
-SwinUNETR while exposing only the pieces needed for sparse 3D sketch inputs.
+"""
+    S2V-Net backbone network, 3D Swin Transformer module
 """
 import torch
 import torch.nn as nn

@@ -1,7 +1,5 @@
-"""Generate paired geodesic sketches and voxel occupancy labels.
-
-The synthetic data pipeline creates sparse curve inputs and dense occupancy
-targets in a shared normalized grid, matching the supervision used by S2V-Net.
+"""
+    Generate paired geodesic sketches and voxel occupancy labels.
 """
 from __future__ import annotations
 import os
