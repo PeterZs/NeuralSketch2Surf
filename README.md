@@ -29,7 +29,7 @@ Amal Dev Parakkat<sup>1</sup>
 <br>
 
 <p>
-  <a href=".">Paper</a> &nbsp; | &nbsp; <a href="https://files.atypon.com/acm/6040d3e9ff1fa05cc0a67e40eb4c942c">Video</a> &nbsp; | &nbsp; <a href="https://huggingface.co/spaces/HongshengY/NeuralSketch2Surf-Demo">Demo Website</a> &nbsp; | &nbsp; <a href="#2-download-model-weights">Model</a>
+  <a href="https://inria.hal.science/hal-05615004">Paper</a> &nbsp; | &nbsp; <a href="https://files.atypon.com/acm/6040d3e9ff1fa05cc0a67e40eb4c942c">Video</a> &nbsp; | &nbsp; <a href="https://huggingface.co/spaces/HongshengY/NeuralSketch2Surf-Demo">Demo Website</a> &nbsp; | &nbsp; <a href="#2-download-model-weights">Model</a>
 </p>
 
 
