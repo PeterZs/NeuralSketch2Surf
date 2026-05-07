@@ -1,12 +1,12 @@
+"""Voxelize synthetic geodesic sketches into sparse occupancy grids."""
 import os
 from pathlib import Path
 from typing import List, Tuple
 import numpy as np
 
 
-# -------- 3-D Bresenham -----------
 def bresenham3d(p0, p1):
-    """Standard 3D Bresenham algorithm"""
+    """Rasterize a 3D segment into voxel coordinates."""
     x1, y1, z1 = map(int, p0)
     x2, y2, z2 = map(int, p1)
     dx, dy, dz = abs(x2 - x1), abs(y2 - y1), abs(z2 - z1)
@@ -66,12 +66,14 @@ def bresenham3d(p0, p1):
 
 
 def _parse_index(tok: str) -> int:
+    """Parse an absolute OBJ vertex index."""
     if tok.startswith('-'):
         raise ValueError("OBJ uses relative (negative) indices, which are not supported in the current implementation.")
     return int(tok.split('/')[0]) - 1
 
 
 def parse_geodesic_obj(obj_path: str) -> Tuple[np.ndarray, List[Tuple[int, int]]]:
+    """Read curve vertices and unique edges from an OBJ sketch file."""
     verts, edges = [], []
     with open(obj_path, "r", encoding="utf-8") as f:
         for raw in f:
@@ -100,6 +102,7 @@ def parse_geodesic_obj(obj_path: str) -> Tuple[np.ndarray, List[Tuple[int, int]]
 
 
 def voxelize_obj_geodesic(obj_path: str, meta_path: str, output_path: str) -> None:
+    """Voxelize sketch curves using the label volume metadata."""
     m = np.load(meta_path)
     center = m["center"].astype(np.float64)
     max_extent_scalar = float(np.max(m["max_extent"]))
@@ -117,10 +120,8 @@ def voxelize_obj_geodesic(obj_path: str, meta_path: str, output_path: str) -> No
     real_origin = m["o3d_origin"] 
 
     def to_index(p_norm: np.ndarray) -> np.ndarray:
-        # Formula: index = floor( (pos - origin) / size )
         return np.floor((p_norm - real_origin) / voxel_size + 1e-6).astype(np.int32)
 
-    # Calculate indices and clamp to [0, R-1]
     gi = np.clip(to_index(verts_norm), 0, R - 1)
 
     vox = np.zeros((R, R, R), dtype=np.uint8)

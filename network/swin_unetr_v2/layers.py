@@ -1,6 +1,8 @@
+"""Small layer factory helpers used by the standalone SwinUNETR modules."""
 import torch.nn as nn
 
 def get_norm_layer(name, spatial_dims=3, channels=None):
+    """Return the normalization layer requested by the network config."""
     if name == "layer":
         return nn.LayerNorm(normalized_shape=channels)
     
@@ -19,6 +21,7 @@ def get_norm_layer(name, spatial_dims=3, channels=None):
     raise NotImplementedError(f"Norm type {name} not implemented in standalone version")
 
 def get_act_layer(name):
+    """Return the activation layer requested by the network config."""
     if name == "relu":
         return nn.ReLU(inplace=False)
     if name == "prelu":

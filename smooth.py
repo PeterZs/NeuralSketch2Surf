@@ -1,3 +1,8 @@
+"""Interactive fidelity-vs-smoothness mesh post-processing.
+
+The network predicts a voxel-derived proxy mesh; this tool lets users blend
+between a smoother state and a sketch-adherent state while preserving topology.
+"""
 import numpy as np
 import igl
 import polyscope as ps
@@ -13,10 +18,11 @@ DATA = {
     'ratio': 0.4,
     'mesh_handle': None,
     'base_name': "output",
-    'screenshot_count': 0  # Counter for incrementing
+    'screenshot_count': 0
 }
 
 def read_obj_lines(filename):
+    """Load OBJ line elements as a curve network."""
     if not os.path.exists(filename):
         print(f"Error: Skeleton file not found at {filename}")
         return np.array([]), np.array([])
@@ -44,12 +50,14 @@ def read_obj_lines(filename):
     return V_arr, E_arr
 
 def solve_state(V_orig, S, target_pts, kp_val, lambd_val, iterations=100):
+    """Iteratively balance Laplacian smoothing with attraction to sketch samples."""
     V = V_orig.copy()
     for _ in range(iterations):
         V = V + lambd_val * (S.dot(V) - V) + kp_val * (target_pts - V)
     return V
 
 def update_mesh():
+    """Update the displayed mesh for the current fidelity-smoothness ratio."""
     if DATA['V_smooth'] is None or DATA['V_fidelity'] is None:
         return
     t = DATA['ratio']
@@ -57,6 +65,7 @@ def update_mesh():
     DATA['mesh_handle'].update_vertex_positions(V_blended)
 
 def callback():
+    """Polyscope UI callback for blending, screenshots, and export."""
     ps.imgui.PushItemWidth(200)
     
     changed, new_ratio = ps.imgui.SliderFloat("Fidelity vs Smooth", DATA['ratio'], 0.0, 1.0)
@@ -102,6 +111,7 @@ def callback():
     ps.imgui.PopItemWidth()
 
 def main(skeleton_path, mesh_path):
+    """Initialize smoothing states and launch the interactive viewer."""
     print(f"Loading Skeleton: {skeleton_path}")
     print(f"Loading Mesh:     {mesh_path}")
 
@@ -119,8 +129,6 @@ def main(skeleton_path, mesh_path):
     DATA['F'] = np.array(F_p)
     DATA['base_name'] = os.path.splitext(os.path.basename(mesh_path))[0]
 
-    
-    # Adjacency setup
     mesh_tri = trimesh.Trimesh(vertices=V_orig, faces=DATA['F'], process=False)
     n = len(V_orig)
     edges = mesh_tri.edges_unique
@@ -132,6 +140,7 @@ def main(skeleton_path, mesh_path):
     S = sparse.diags(1.0 / degree) @ adj 
 
     dummy_f = np.arange(len(V_curve), dtype=np.int64).reshape(-1, 1)
+    # Closest sketch samples provide the fidelity anchors for surface editing.
     _, _, target_pts = igl.point_mesh_squared_distance(V_orig, V_curve, dummy_f)
 
     print("Caching smooth states...")
@@ -156,13 +165,11 @@ def main(skeleton_path, mesh_path):
     ps.show()
 
 if __name__ == "__main__":
-    # path
-    skeleton_path = "path/skeleton.obj"       # skeleton
-    mesh_path     = "path/reconstruction_mesh.obj" # reconstruction mesh
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: python smooth.py <sketch.obj> <reconstruction_mesh.obj>")
 
-    if len(sys.argv) >= 3:
-        skeleton_path = sys.argv[1]
-        mesh_path = sys.argv[2]
+    skeleton_path = sys.argv[1]
+    mesh_path = sys.argv[2]
     
     if os.path.exists(skeleton_path) and os.path.exists(mesh_path):
         main(skeleton_path, mesh_path)

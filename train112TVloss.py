@@ -1,3 +1,9 @@
+"""Training entry point for NeuralSketch2Surf.
+
+The model learns a sketch-to-occupancy mapping on paired sparse sketch voxels
+and filled target volumes. The training split is object-level to evaluate
+generalization to unseen shapes rather than memorization of sketch variants.
+"""
 import os
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import argparse
@@ -12,7 +18,6 @@ try:
 except AttributeError:
     pass
 
-# -A100 Acceleration
 torch.set_float32_matmul_precision('medium')
 
 from torch.utils.data import Dataset, DataLoader
@@ -24,13 +29,12 @@ from monai.losses import DiceLoss
 from monai.metrics import DiceMetric, MeanIoU
 
 
-from Network.SwinUNETRV2.swin_unetr import SwinUNETR
-from Network.refinement_net import RefinementNet
+from network.swin_unetr_v2.swin_unetr import SwinUNETR
+from network.refinement_net import RefinementNet
 
 
-# TV Loss & DiceWCE
 class TotalVariationLoss(nn.Module):
-    """For constraining surface smoothness"""
+    """Surface smoothness regularizer."""
     def __init__(self, weight=1.0):
         super().__init__()
         self.weight = weight
@@ -53,6 +57,7 @@ class TotalVariationLoss(nn.Module):
         return t.size()[1] * t.size()[2] * t.size()[3] * t.size()[4]
 
 class DiceWCELoss(nn.Module):
+    """Hybrid overlap and foreground-weighted voxel classification loss."""
     def __init__(self, wce_weight=1.0):
         super().__init__()
         self.dice = DiceLoss(sigmoid=True, batch=True)
@@ -64,8 +69,8 @@ class DiceWCELoss(nn.Module):
         return self.dice(pred, target) + self.bce(pred, target)
 
 
-# Dataset Definition
 class VoxelDataset(Dataset):
+    """Paired sparse-sketch and solid-occupancy voxel dataset."""
     def __init__(self, file_list, root_dir, img_size=112, transform=None):
         self.file_list = file_list
         self.root_dir = root_dir
@@ -92,24 +97,22 @@ class VoxelDataset(Dataset):
         if label_data.ndim == 3: label_data = label_data[None, ...]
 
         if self.transform:
-            # 1. Rotation
+            # Lightweight augmentation simulates pose variation and sketch noise.
             k = random.choice([0, 1, 2, 3])
             if k > 0:
                 input_data = np.rot90(input_data, k, axes=(1, 3)).copy()
                 label_data = np.rot90(label_data, k, axes=(1, 3)).copy()
-            # 2. Flip
             if random.random() > 0.5:
                 input_data = np.flip(input_data, axis=3).copy()
                 label_data = np.flip(label_data, axis=3).copy()
-            # 3. Gaussian Noise
             if random.random() < 0.5:
                 noise = np.random.normal(0, 0.02, input_data.shape).astype(np.float32)
                 input_data = input_data + noise
 
         return torch.from_numpy(input_data), torch.from_numpy(label_data)
 
-# Data Module Definition
 class VoxelDataModule(pl.LightningDataModule):
+    """Prepare object-level train/validation splits for voxel pairs."""
 
     def __init__(self, args):
         super().__init__()
@@ -120,12 +123,7 @@ class VoxelDataModule(pl.LightningDataModule):
         self.img_size = args.img_size
 
     def setup(self, stage=None):
-        """
-        Prepare data:
-        1. Find input and label files in subdirectories.
-        2. Pair them based on filenames.
-        3. Split dataset into Train (80%) and Val (20%) based on unique Object IDs 
-        """
+        """Pair voxel files and split by object ID."""
         geo_dir = os.path.join(self.data_dir, "voxelize_geo")
         label_dir = os.path.join(self.data_dir, "voxelize_label")
         if not os.path.exists(geo_dir): raise ValueError(f"Not found: {geo_dir}")
@@ -141,7 +139,7 @@ class VoxelDataModule(pl.LightningDataModule):
         
         print(f"Found {len(file_items)} pairs.")
         
-        # Split by ID
+        # Split by object ID to avoid shape leakage.
         unique_ids = sorted(list(set([x['id'] for x in file_items])))
         random.seed(self.seed)
         random.shuffle(unique_ids)
@@ -160,14 +158,13 @@ class VoxelDataModule(pl.LightningDataModule):
         return DataLoader(VoxelDataset(self.val_data, self.data_dir, self.img_size, False), batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True, persistent_workers=True)
 
 
-#Lightning Training Core
 class SwinReconstructionModule(pl.LightningModule):
+    """S2V-Net: SwinUNETR coarse prediction plus residual refinement."""
     def __init__(self, args):
         super().__init__()
         self.save_hyperparameters()
         self.args = args
 
-        # Backbone
         self.backbone = SwinUNETR(
             img_size=(args.img_size, args.img_size, args.img_size),
             in_channels=1,
@@ -177,14 +174,11 @@ class SwinReconstructionModule(pl.LightningModule):
             drop_rate=args.dropout
         )
         
-        # Refiner
         self.refiner = RefinementNet(in_channels=1, hidden_dim=32, num_blocks=3)
         
-        # Losses
         self.loss_fn = DiceWCELoss(wce_weight=args.wce_weight)
         self.tv_loss = TotalVariationLoss(weight=args.tv_weight)
         
-        # Metrics
         self.train_dice = DiceMetric(include_background=True, reduction="mean")
         self.val_dice = DiceMetric(include_background=True, reduction="mean")
         self.train_iou = MeanIoU(include_background=True, reduction="mean")
@@ -198,23 +192,14 @@ class SwinReconstructionModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         
-        # Forward pass
         coarse_logits = self.backbone(x)
         fine_logits = self.refiner(coarse_logits)
         
-        # Compute Loss
-        
-        # Coarse stage Loss (weight 0.5): Focus Swin on overall shape
+        # Coarse stage learns global shape; refinement stage learns local corrections.
         loss_coarse = self.loss_fn(coarse_logits, y)
-        
-        # Refinement stage Loss (weight 1.0): Focus Refiner on final quality
         loss_fine = self.loss_fn(fine_logits, y)
-        
-        # TV Loss Only constrain final output, enforce smoothness
         probs_fine = torch.sigmoid(fine_logits)
         loss_tv = self.tv_loss(probs_fine)
-        
-        # Total Loss
         total_loss = 0.5 * loss_coarse + 1.0 * loss_fine + loss_tv
         
         with torch.no_grad():
@@ -273,8 +258,8 @@ class SwinReconstructionModule(pl.LightningModule):
         }
         return [optimizer], [scheduler]
     
-# A pure PyTorch wrapper specifically designed for exporting and inference
 class InferenceModel(nn.Module):
+    """Pure PyTorch wrapper used for TorchScript export."""
     def __init__(self, backbone, refiner):
         super().__init__()
         self.backbone = backbone
@@ -287,7 +272,6 @@ class InferenceModel(nn.Module):
 
 
 
-# Main
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", type=str, required=True, help="Dataset Directory")
@@ -359,7 +343,7 @@ def main():
         trainer.fit(model, datamodule=dm)
 
     if trainer.global_rank == 0:
-        print("\n✨ Exporting best model to TorchScript...")
+        print("\nExporting best model to TorchScript...")
         best_ckpt = checkpoint_callback.best_model_path
         if best_ckpt:
             try:

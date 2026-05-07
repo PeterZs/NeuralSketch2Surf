@@ -1,3 +1,8 @@
+"""Voxelize closed source meshes into filled occupancy labels.
+
+The saved metadata defines the normalized grid used later to align synthetic
+sketch curves with their ground-truth volumes.
+"""
 import numpy as np
 import trimesh
 import open3d as o3d
@@ -11,6 +16,7 @@ def voxelize_label_from_stl(
     resolution: int = 64,
     margin: float = 1.05,
 ) -> None:
+    """Create a filled binary volume and save its normalization metadata."""
 
     mesh = trimesh.load(stl_path, force='mesh')
     if isinstance(mesh, trimesh.Scene):
@@ -26,12 +32,10 @@ def voxelize_label_from_stl(
     R = int(resolution)
     voxel_size = (2.0 * margin) / (R - 1)
 
-    # Normalize
     target_radius = 1.0  
     scale = target_radius / (max_extent_scalar / 2.0)
     verts_norm = (verts_np - center) * scale
 
-    # Open3D voxelization
     o3d_mesh = o3d.geometry.TriangleMesh(
         vertices=o3d.utility.Vector3dVector(verts_norm),
         triangles=o3d.utility.Vector3iVector(mesh.faces.astype(np.int32)),
@@ -63,7 +67,7 @@ def voxelize_label_from_stl(
 
     vox = binary_fill_holes(vox).astype(np.uint8)
 
-    # Construct meta 
+    # The same transform is reused when voxelizing geodesic sketch curves.
     meta = {
         "center": center.astype(np.float64),
         "max_extent": max_extent.astype(np.float64),

@@ -1,3 +1,8 @@
+"""3D Swin Transformer blocks used by the S2V-Net backbone.
+
+This standalone implementation keeps the windowed-attention structure of
+SwinUNETR while exposing only the pieces needed for sparse 3D sketch inputs.
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +11,7 @@ from ..utils import ensure_tuple_rep
 from ..layers import get_act_layer, get_norm_layer
 
 class Mlp(nn.Module):
+    """Feed-forward block inside each transformer layer."""
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer="gelu", drop=0.0):
         super().__init__()
         out_features = out_features or in_features
@@ -24,20 +30,22 @@ class Mlp(nn.Module):
         return x
 
 def window_partition(x, window_size):
+    """Partition a 3D feature volume into local attention windows."""
     B, D, H, W, C = x.shape
     x = x.view(B, D // window_size[0], window_size[0], H // window_size[1], window_size[1], W // window_size[2], window_size[2], C)
     windows = x.permute(0, 1, 3, 5, 2, 4, 6, 7).contiguous().view(-1, window_size[0] * window_size[1] * window_size[2], C)
     return windows
 
 def window_reverse(windows, window_size, dims):
+    """Reconstruct a 3D feature volume from local attention windows."""
     B = int(windows.shape[0] / (dims[0] * dims[1] * dims[2] / window_size[0] / window_size[1] / window_size[2]))
     x = windows.view(B, dims[0] // window_size[0], dims[1] // window_size[1], dims[2] // window_size[2], 
                      window_size[0], window_size[1], window_size[2], -1)
     x = x.permute(0, 1, 4, 2, 5, 3, 6, 7).contiguous().view(B, dims[0], dims[1], dims[2], -1)
     return x
 
-# V1 Attention
 class WindowAttention(nn.Module):
+    """Window self-attention with discrete relative position bias."""
     def __init__(self, dim, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0.0, proj_drop=0.0):
         super().__init__()
         self.dim = dim
@@ -99,8 +107,8 @@ class WindowAttention(nn.Module):
         x = self.proj_drop(x)
         return x
 
-# V2 Attention
 class WindowAttentionV2(nn.Module):
+    """Window self-attention with Swin V2 continuous position bias."""
     def __init__(self, dim, window_size, num_heads, qkv_bias=True, attn_drop=0.0, proj_drop=0.0, pretrained_window_size=[0, 0, 0]):
         super().__init__()
         self.dim = dim
@@ -110,21 +118,19 @@ class WindowAttentionV2(nn.Module):
 
         self.logit_scale = nn.Parameter(torch.log(10 * torch.ones((num_heads, 1, 1))), requires_grad=True)
 
-        # mlp to generate continuous relative position bias
+        # Continuous position bias improves transfer across window sizes.
         self.cpb_mlp = nn.Sequential(
             nn.Linear(3, 512, bias=True),
             nn.ReLU(inplace=False),
             nn.Linear(512, num_heads, bias=False)
         )
 
-        # get relative_coords_table
         relative_coords_h = torch.arange(-(self.window_size[0] - 1), self.window_size[0], dtype=torch.float32)
         relative_coords_w = torch.arange(-(self.window_size[1] - 1), self.window_size[1], dtype=torch.float32)
         relative_coords_d = torch.arange(-(self.window_size[2] - 1), self.window_size[2], dtype=torch.float32)
         
         relative_coords_table = torch.stack(torch.meshgrid([relative_coords_h, relative_coords_w, relative_coords_d], indexing="ij"))
         
-        # Log-CPB normalization
         relative_coords_table = relative_coords_table.permute(1, 2, 3, 0).contiguous().unsqueeze(0)  # 1, 2*Wh-1, 2*Ww-1, 2*Wd-1, 3
         
         if pretrained_window_size[0] > 0:
@@ -141,7 +147,6 @@ class WindowAttentionV2(nn.Module):
 
         self.register_buffer("relative_coords_table", relative_coords_table)
 
-        # get pair-wise relative position index for each token inside the window
         coords_d = torch.arange(self.window_size[0])
         coords_h = torch.arange(self.window_size[1])
         coords_w = torch.arange(self.window_size[2])
@@ -182,7 +187,6 @@ class WindowAttentionV2(nn.Module):
         qkv = qkv.reshape(B_, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        # Cosine Attention
         attn = (F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1))
         
         max_log_val = torch.log(torch.tensor(1.0 / 0.01, device=self.logit_scale.device))
@@ -190,7 +194,6 @@ class WindowAttentionV2(nn.Module):
         
         attn = attn * logit_scale
 
-        # Log-CPB Bias
         relative_position_bias_table = self.cpb_mlp(self.relative_coords_table).view(-1, self.num_heads)
         relative_position_bias = relative_position_bias_table[self.relative_position_index.view(-1)].view(
             self.window_size[0] * self.window_size[1] * self.window_size[2],
@@ -212,6 +215,7 @@ class WindowAttentionV2(nn.Module):
         return x
 
 class SwinTransformerBlock(nn.Module):
+    """Shifted-window transformer block for 3D feature tokens."""
     def __init__(self, dim, num_heads, window_size, shift_size, mlp_ratio=4.0, qkv_bias=True, drop=0.0, attn_drop=0.0, drop_path=0.0, act_layer="gelu", norm_layer="layer", use_v2=False):
         super().__init__()
         self.dim = dim
@@ -266,6 +270,7 @@ class SwinTransformerBlock(nn.Module):
         return x
 
 class PatchMerging(nn.Module):
+    """Downsample 3D tokens by merging neighboring patch features."""
     def __init__(self, dim, norm_layer="layer", spatial_dims=3):
         super().__init__()
         self.dim = dim
@@ -297,6 +302,7 @@ class PatchMerging(nn.Module):
         return x
 
 class PatchMergingV2(nn.Module):
+    """Swin V2 patch merging block."""
     def __init__(self, dim, norm_layer="layer", spatial_dims=3):
         super().__init__()
         self.dim = dim
@@ -328,6 +334,7 @@ class PatchMergingV2(nn.Module):
         return x
 
 class BasicLayer(nn.Module):
+    """Stack shifted-window blocks at one feature resolution."""
     def __init__(self, dim, depth, num_heads, window_size, drop_path, mlp_ratio=4.0, qkv_bias=True, drop=0.0, attn_drop=0.0, norm_layer="layer", use_v2=False):
         super().__init__()
         self.dim = dim
@@ -391,6 +398,7 @@ class BasicLayer(nn.Module):
         return x
 
 class PatchEmbed(nn.Module):
+    """Embed a voxel grid into non-overlapping 3D patch tokens."""
     def __init__(self, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None, spatial_dims=3):
         super().__init__()
         patch_size = ensure_tuple_rep(patch_size, spatial_dims)
@@ -413,6 +421,7 @@ class PatchEmbed(nn.Module):
         return x
 
 class SwinTransformer(nn.Module):
+    """Hierarchical 3D Swin Transformer encoder."""
     def __init__(self, in_chans=1, embed_dim=48, window_size=(7, 7, 7), patch_size=(2, 2, 2), depths=[2, 2, 2, 2], num_heads=[3, 6, 12, 24], mlp_ratio=4.0, qkv_bias=True, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.0, norm_layer="layer", patch_norm=False, use_checkpoint=False, spatial_dims=3, downsample="merging", use_v2=False):
         super().__init__()
         self.num_layers = len(depths)
@@ -478,37 +487,30 @@ class SwinTransformer(nn.Module):
         
         outs = []
         
-        # Stage 0
         self.layers1[0].input_resolution = (Wh, Ww, Wd)
         x = self.layers1[0](x)
         outs.append(x)
         
-        # Downsample 0 -> 1
         self.downsamples[0].input_resolution = (Wh, Ww, Wd)
         x = self.downsamples[0](x)
         Wh, Ww, Wd = (Wh + 1) // 2, (Ww + 1) // 2, (Wd + 1) // 2
         
-        # Stage 1
         self.layers2[0].input_resolution = (Wh, Ww, Wd)
         x = self.layers2[0](x)
         outs.append(x)
         
-        # Downsample 1 -> 2
         self.downsamples[1].input_resolution = (Wh, Ww, Wd)
         x = self.downsamples[1](x)
         Wh, Ww, Wd = (Wh + 1) // 2, (Ww + 1) // 2, (Wd + 1) // 2
         
-        # Stage 2
         self.layers3[0].input_resolution = (Wh, Ww, Wd)
         x = self.layers3[0](x)
         outs.append(x)
         
-        # Downsample 2 -> 3
         self.downsamples[2].input_resolution = (Wh, Ww, Wd)
         x = self.downsamples[2](x)
         Wh, Ww, Wd = (Wh + 1) // 2, (Ww + 1) // 2, (Wd + 1) // 2
         
-        # Stage 3
         self.layers4[0].input_resolution = (Wh, Ww, Wd)
         x = self.layers4[0](x)
         outs.append(x)

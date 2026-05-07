@@ -1,3 +1,4 @@
+"""Modified 3D SwinUNETR backbone for sketch-to-voxel prediction."""
 import torch
 import torch.nn as nn
 
@@ -7,9 +8,7 @@ from .blocks.dynunet_block import UnetOutBlock, UnetResBlock, UnetUpBlock
 from .layers import get_norm_layer
 
 class SwinUNETR(nn.Module):
-    """
-    Reference: https://github.com/Project-MONAI/MONAI/blob/dev/monai/networks/nets/swin_unetr.py
-    """
+    """3D SwinUNETR backbone adapted for sparse sketch occupancy."""
 
     def __init__(
         self,
@@ -65,7 +64,6 @@ class SwinUNETR(nn.Module):
             use_v2=use_v2
         )
 
-        # --- ENCODERS ---
         self.encoder1 = UnetResBlock(
             spatial_dims=spatial_dims,
             in_channels=in_channels,
@@ -111,7 +109,6 @@ class SwinUNETR(nn.Module):
             norm_name=norm_name,
         )
 
-        # --- DECODERS ---
         self.decoder5 = UnetUpBlock(
             spatial_dims=spatial_dims,
             in_channels=16 * feature_size,
@@ -119,7 +116,6 @@ class SwinUNETR(nn.Module):
             skip_channels=4 * feature_size,
             kernel_size=3,
             stride=1,
-            # upsample_kernel_size=2,  <-- Deleted because Trilinear interpolation was used instead.
             norm_name=norm_name,
         )
 
@@ -130,7 +126,6 @@ class SwinUNETR(nn.Module):
             skip_channels=2 * feature_size,
             kernel_size=3,
             stride=1,
-            # upsample_kernel_size=2,  <-- Deleted because Trilinear interpolation was used instead.
             norm_name=norm_name,
         )
 
@@ -141,7 +136,6 @@ class SwinUNETR(nn.Module):
             skip_channels=feature_size,
             kernel_size=3,
             stride=1,
-            # upsample_kernel_size=2,  <-- Deleted because Trilinear interpolation was used instead.
             norm_name=norm_name,
         )
 
@@ -152,18 +146,19 @@ class SwinUNETR(nn.Module):
             skip_channels=feature_size,
             kernel_size=3,
             stride=1,
-            # upsample_kernel_size=2,  <-- Deleted because Trilinear interpolation was used instead.
             norm_name=norm_name,
         )
 
         self.out = UnetOutBlock(spatial_dims=spatial_dims, in_channels=feature_size, out_channels=out_channels)
 
     def forward(self, x_in):
+        """Return coarse occupancy logits from a sparse sketch volume."""
         D, H, W = x_in.shape[2], x_in.shape[3], x_in.shape[4]
         
         hidden_states_out = self.swinViT.forward_features(x_in)
         
         def project(x, d, h, w):
+            """Restore token sequences to 3D feature maps for skip fusion."""
             B, L, C = x.shape
             x = x.view(B, d, h, w, C)
             x = x.permute(0, 4, 1, 2, 3).contiguous()

@@ -1,7 +1,7 @@
-"""
-1. Generate geodesic curve -> .obj
-2. voxelize_label -> .npy + .npz
-3. voxelize_geodesic -> .npy
+"""Generate paired geodesic sketches and voxel occupancy labels.
+
+The synthetic data pipeline creates sparse curve inputs and dense occupancy
+targets in a shared normalized grid, matching the supervision used by S2V-Net.
 """
 from __future__ import annotations
 import os
@@ -16,17 +16,13 @@ from geodesic import initGeodesic, findNextPoint
 from voxelize_label import voxelize_label_from_stl
 from voxelize_geodesic import voxelize_obj_geodesic
 
-# input
-INPUT_MESH_DIR = Path("Data/Original_3D_mesh_data")
-
-# output
-OUTPUT_ROOT = Path("Data/Sketch_Dataset_112")
+INPUT_MESH_DIR = Path("data/original_meshes")
+OUTPUT_ROOT = Path("data/sketch_dataset_112")
 OUTPUT_GEO_DIR = OUTPUT_ROOT / "geo"               
 OUTPUT_LABEL_DIR = OUTPUT_ROOT / "voxelize_label"  
 OUTPUT_META_DIR = OUTPUT_ROOT / "meta"             
 OUTPUT_VOX_GEO_DIR = OUTPUT_ROOT / "voxelize_geo"  
 
-# voxelization settings
 RESOLUTION = 112
 MARGIN = 1.1
 
@@ -34,7 +30,7 @@ random.seed(42)
 np.random.seed(42)
 
 def get_param_suffix(n_curves, len_percent, use_farthest):
-    """Generate parameter suffix, e.g., _N5_L150_farthest"""
+    """Encode generation settings in output filenames."""
     len_str = f"{int(len_percent)}" if len_percent.is_integer() else f"{len_percent}"
     suffix = f"_N{n_curves}_L{len_str}"
     if use_farthest:
@@ -42,6 +38,7 @@ def get_param_suffix(n_curves, len_percent, use_farthest):
     return suffix
 
 def save_curves_as_obj(filename, curves, normals):
+    """Write generated geodesics as OBJ polylines."""
     with open(filename, "w") as f:
         f.write("# Exported geodesic curves\n")
         v_offset = 1
@@ -55,6 +52,7 @@ def save_curves_as_obj(filename, curves, normals):
 
 def compute_geodesics_to_obj(mesh_path: Path, out_obj_path: Path, 
                              n_curves: int, len_percent: float) -> None:
+    """Trace random geodesic curves on one mesh."""
     mesh = om.read_trimesh(str(mesh_path))
     mesh.update_normals()
     mesh_vertices = np.array(mesh.points())
@@ -85,7 +83,7 @@ def compute_geodesics_to_obj(mesh_path: Path, out_obj_path: Path,
         polyLine = [np.array(P)]
         polyNormals = []
         
-        # Calculate the interpolation of the starting point normal
+        # Normals are stored for visualization; S2V-Net does not require them.
         nA = np.array(mesh.normal(mesh.from_vertex_handle(heh)))
         nB = np.array(mesh.normal(mesh.to_vertex_handle(heh)))
         start_n = (1.0 - lmbda) * nA + lmbda * nB
@@ -122,6 +120,7 @@ def compute_geodesics_to_obj(mesh_path: Path, out_obj_path: Path,
 
 def stage1_geodesic_export(input_dir: Path, out_geo_dir: Path, 
                            param_suffix: str, n_curves: int, len_percent: float):
+    """Generate raw curve sketches for all source meshes."""
     out_geo_dir.mkdir(parents=True, exist_ok=True)
     mesh_files = sorted(input_dir.glob("*.obj"))
     
@@ -147,6 +146,7 @@ def stage1_geodesic_export(input_dir: Path, out_geo_dir: Path,
 
 def stage2_voxelize_label(input_dir: Path, out_label_dir: Path, out_meta_dir: Path, 
                           param_suffix: str):
+    """Voxelize source meshes and save alignment metadata."""
     out_label_dir.mkdir(parents=True, exist_ok=True)
     out_meta_dir.mkdir(parents=True, exist_ok=True)
     mesh_files = sorted(input_dir.glob("*.obj"))
@@ -176,6 +176,7 @@ def stage2_voxelize_label(input_dir: Path, out_label_dir: Path, out_meta_dir: Pa
 
 def stage3_voxelize_geodesic(geo_dir: Path, meta_dir: Path, out_vox_geo_dir: Path, 
                              param_suffix: str):
+    """Voxelize geodesic curves using the mesh label coordinate frame."""
     out_vox_geo_dir.mkdir(parents=True, exist_ok=True)
     
     pattern = f"*_geo{param_suffix}.obj"
@@ -193,7 +194,6 @@ def stage3_voxelize_geodesic(geo_dir: Path, meta_dir: Path, out_vox_geo_dir: Pat
         meta_path = meta_dir / f"{name_part}_meta{param_suffix}.npz"
         out_vox_path = out_vox_geo_dir / f"{name_part}_voxelize_geodesic{param_suffix}.npy"
 
-        # Resumable Transfer Detection
         if out_vox_path.exists():
             print(f"[3/3] ({i}/{len(geo_files)}) Skip (Exists): {out_vox_path.name}")
             continue
@@ -210,7 +210,6 @@ def stage3_voxelize_geodesic(geo_dir: Path, meta_dir: Path, out_vox_geo_dir: Pat
             print(f"[ERR] Failed: {geo_path.name} -> {e}")
 
 
-# Main
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Geodesic Voxelization Pipeline")
     parser.add_argument("--n_curves", type=int, default=40, 
@@ -239,15 +238,12 @@ if __name__ == "__main__":
     print(f"Config: N_CURVES={n_curves_val}, LEN_PERCENT={len_percent_val}, FARTHEST={use_farthest_val}")
     print(f"Current File Suffix: {current_suffix}")
 
-    # Step 1
     stage1_geodesic_export(INPUT_MESH_DIR, OUTPUT_GEO_DIR, 
                            current_suffix, n_curves_val, len_percent_val)
     
-    # Step 2
     stage2_voxelize_label(INPUT_MESH_DIR, OUTPUT_LABEL_DIR, OUTPUT_META_DIR, 
                           current_suffix)
     
-    # Step 3
     stage3_voxelize_geodesic(OUTPUT_GEO_DIR, OUTPUT_META_DIR, OUTPUT_VOX_GEO_DIR, 
                              current_suffix)
 

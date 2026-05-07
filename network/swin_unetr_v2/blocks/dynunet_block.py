@@ -1,3 +1,8 @@
+"""UNet decoder blocks used by the modified SwinUNETR backbone.
+
+The upsampling block intentionally uses interpolation before convolution to
+produce smoother feature fields for sparse sketch inputs.
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,6 +10,7 @@ from ..layers import get_norm_layer, get_act_layer
 from ..utils import ensure_tuple_rep
 
 class UnetBasicBlock(nn.Module):
+    """Convolution, normalization, and activation block."""
     def __init__(self, spatial_dims, in_channels, out_channels, kernel_size, stride, norm_name, act_name="leakyrelu"):
         super().__init__()
         kernel_size = ensure_tuple_rep(kernel_size, spatial_dims)
@@ -23,6 +29,7 @@ class UnetBasicBlock(nn.Module):
         return self.lrelu(self.norm(self.conv(x)))
 
 class UnetResBlock(nn.Module):
+    """Residual convolution block used in encoder and decoder stages."""
     def __init__(self, spatial_dims, in_channels, out_channels, kernel_size, stride, norm_name, act_name="leakyrelu"):
         super().__init__()
         kernel_size = ensure_tuple_rep(kernel_size, spatial_dims)
@@ -50,6 +57,7 @@ class UnetResBlock(nn.Module):
         return out
 
 class UnetUpBlock(nn.Module):
+    """Interpolation-based decoder block with skip-feature fusion."""
     def __init__(
         self, 
         spatial_dims, 
@@ -88,23 +96,19 @@ class UnetUpBlock(nn.Module):
         )
 
     def forward(self, x, skip):
-        # Trilinear interpolation(replacing transpose convolution)
+        # Smooth upsampling avoids transpose-convolution artifacts on sparse inputs.
         if self.spatial_dims == 3:
             x_up = F.interpolate(x, scale_factor=2, mode='trilinear', align_corners=False)
         else:
             x_up = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         
-        # adjust channel dimensions
         out = self.conv_adjust(x_up)
-        
-        # concatenate skip connection
         out = torch.cat((out, skip), dim=1)
-        
-        # Convolution Fusion
         out = self.conv_block(out)
         return out
 
 class UnetOutBlock(nn.Module):
+    """Final projection to the occupancy-logit channel."""
     def __init__(self, spatial_dims, in_channels, out_channels, dropout=None):
         super().__init__()
         if spatial_dims == 3:

@@ -1,11 +1,15 @@
+"""Interactive editor for cleaning 3D sketch curve networks."""
 import polyscope as ps
 import polyscope.imgui as psim
 import numpy as np
 import sys
 import os
 import math
+from pathlib import Path
 
 class SketchEditor:
+    """Polyscope-based eraser tool for ASCII PLY edge sketches."""
+
     def __init__(self, filename):
         self.filename = filename
         self.raw_vertices = None
@@ -31,6 +35,7 @@ class SketchEditor:
         ps.show()
 
     def load_ply(self, path):
+        """Load vertices and edges from a simple ASCII PLY file."""
         with open(path, 'r') as f:
             lines = f.readlines()
 
@@ -60,6 +65,7 @@ class SketchEditor:
         self.raw_edges = np.array(edge_data)
 
     def get_clean_data(self):
+        """Compact vertices after edge deletion."""
 
         if self.raw_edges is None or len(self.raw_edges) == 0:
             return np.zeros((0, 3)), np.zeros((0, 2), dtype=int)
@@ -73,6 +79,7 @@ class SketchEditor:
         return clean_vertices, clean_edges
 
     def save_ply(self, path):
+        """Save the currently visible curve network as ASCII PLY."""
         clean_verts, clean_edges = self.get_clean_data()
         
         if len(clean_edges) == 0:
@@ -100,6 +107,7 @@ class SketchEditor:
         print(f"model saved: {path}")
 
     def update_visualization(self):
+        """Refresh the Polyscope curve network after edits."""
 
         viz_verts, viz_edges = self.get_clean_data()
         
@@ -169,6 +177,7 @@ class SketchEditor:
         return np.stack([screen_x, screen_y], axis=1)
 
     def find_closest_edge(self, mouse_x, mouse_y):
+        """Pick the closest projected edge to the mouse cursor."""
         if self.raw_edges is None or len(self.raw_edges) == 0:
             return -1
             
@@ -201,6 +210,7 @@ class SketchEditor:
         return -1
 
     def callback(self):
+        """Draw the editor UI and handle eraser interactions."""
         psim.SetNextWindowPos((10, 10), psim.ImGuiCond_FirstUseEver)
         psim.SetNextWindowSize((320, 0)) 
         psim.Begin("Toolbox", True)
@@ -226,7 +236,6 @@ class SketchEditor:
             
         psim.End()
 
-        # Interaction
         if not self.eraser_mode:
             if ps.has_curve_network("Highlight"): ps.remove_curve_network("Highlight")
             return
@@ -258,8 +267,9 @@ class SketchEditor:
             draw_list.AddCircle(mouse_pos, 10, psim.GetColorU32((0, 1, 0, 1)))
 
 if __name__ == "__main__":
-    target_file = "sample/hand.ply"     #The file path you want to clean up !!!!ply
-    if len(sys.argv) > 1: target_file = sys.argv[1]
+    target_file = Path(__file__).resolve().parent / "sample" / "hand.ply"
+    if len(sys.argv) > 1:
+        target_file = Path(sys.argv[1])
     
     if not os.path.exists(target_file):
         print(f"Error: {target_file} not found.")

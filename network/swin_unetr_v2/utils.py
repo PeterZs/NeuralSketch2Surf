@@ -1,8 +1,9 @@
-# utils.py
+"""Utility functions shared by the standalone SwinUNETR implementation."""
 import collections.abc
 from itertools import repeat
 
 def ensure_tuple_rep(t, repeat_nr):
+    """Broadcast scalars to tuples while validating explicit sequences."""
     if isinstance(t, str):
         return (t,) * repeat_nr
     
@@ -15,6 +16,7 @@ def ensure_tuple_rep(t, repeat_nr):
 
 
 def look_up_option(opt, supported, default="no_default", print_all_options=True):
+    """Validate a string option against a small supported set."""
 
     if opt is None:
         if default != "no_default":

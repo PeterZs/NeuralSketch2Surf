@@ -1,3 +1,9 @@
+"""Inference utility for point-only OBJ inputs.
+
+This is an auxiliary baseline/debug path for inputs that contain vertices but
+no curve connectivity. It shares the S2V-Net reconstruction stage with the main
+curve-sketch inference scripts.
+"""
 import os
 import glob
 import argparse
@@ -7,9 +13,7 @@ import torch
 import trimesh
 from skimage import measure
 from tqdm import tqdm
-import sys
 
-# Supports checkpoint inference
 try:
     from train112TVloss import SwinReconstructionModule
 except ImportError:
@@ -17,6 +21,7 @@ except ImportError:
 
 
 def save_points_to_obj(path, verts):
+    """Export normalized point samples for inspection."""
 
     with open(path, 'w') as f:
         f.write("# Transformed Input PointCloud (Normalized)\n")
@@ -24,8 +29,8 @@ def save_points_to_obj(path, verts):
             f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
 
 def parse_obj_points(obj_path):
+    """Read only vertex records from an OBJ point cloud."""
 
-    # Read only the vertices (v) from the OBJ file
     verts = []
     try:
         with open(obj_path, 'r') as f:
@@ -41,6 +46,7 @@ def parse_obj_points(obj_path):
     return np.array(verts)
 
 def compute_alignment_params(verts, resolution=112, margin=1.1):
+    """Compute the point-cloud normalization used before voxelization."""
     if len(verts) == 0: return None
 
     vmin = verts.min(axis=0)
@@ -53,7 +59,6 @@ def compute_alignment_params(verts, resolution=112, margin=1.1):
     target_radius = 1.0
     scale = target_radius / (max_extent_scalar / 2.0)
     
-    # 3. Voxel Size
     R = int(resolution)
     voxel_size = (2.0 * margin) / (R - 1)
     
@@ -70,6 +75,7 @@ def compute_alignment_params(verts, resolution=112, margin=1.1):
     }
 
 def voxelize_points(obj_path, resolution=112, margin=1.1):
+    """Voxelize points as a sparse occupancy field."""
 
     verts = parse_obj_points(obj_path)
     if len(verts) == 0: return None, None, None
@@ -100,6 +106,7 @@ def voxelize_points(obj_path, resolution=112, margin=1.1):
 
 
 class InferenceEngine:
+    """Run point-cloud inference and export the reconstructed surface."""
     def __init__(self, model_path, device='cuda', img_size=112, feature_size=24):
         self.device = torch.device(device)
         print(f"Loading model from: {model_path}")
@@ -126,6 +133,7 @@ class InferenceEngine:
         self.model.to(self.device)
 
     def process_and_save(self, obj_path, save_obj_path, save_npz_path, resolution=112, threshold=0.6, margin=1.1):
+        """Process one point-cloud OBJ and save mesh, tensor, and timing data."""
         t_start = time.time()
         
         input_np, params, input_norm_verts = voxelize_points(obj_path, resolution, margin)
@@ -137,23 +145,20 @@ class InferenceEngine:
         save_input_norm_path = save_obj_path.replace("_recon.obj", "_input_norm.obj")
         save_points_to_obj(save_input_norm_path, input_norm_verts)
 
-        # inference
         t_infer_start = time.time()
         input_tensor = torch.from_numpy(input_np).to(self.device)
         with torch.no_grad():
             logits = self.model(input_tensor)
             probs = torch.sigmoid(logits)
         
-        # save raw tensor
         probs_np = probs.cpu().numpy()[0, 0, :, :, :]
         
         t_inference = time.time() - t_infer_start
         
         if probs_np.max() < threshold:
-            print(f"⚠️ Empty prediction for {os.path.basename(obj_path)} (Max prob: {probs_np.max():.4f})")
+            print(f"Empty prediction for {os.path.basename(obj_path)} (Max prob: {probs_np.max():.4f})")
             return False
 
-        # Marching Cubes
         t_recon_start = time.time()
         try:
             verts_mc, faces_mc, normals_mc, values_mc = measure.marching_cubes(probs_np, level=threshold)
@@ -163,9 +168,7 @@ class InferenceEngine:
             scale = params['scale']
             center = params['center']
             
-            # Index -> Norm
             verts_norm = verts_mc * voxel_size + origin
-            # Norm -> World
             verts_orig = verts_norm / scale + center
             
             mesh = trimesh.Trimesh(vertices=verts_orig, faces=faces_mc)
@@ -182,7 +185,6 @@ class InferenceEngine:
                 save_npz_path,
                 raw_probability_grid=probs_np,
                 
-                # Meta Data
                 center=center,
                 max_extent=params['max_extent'],
                 margin=float(params['margin']),
@@ -191,13 +193,11 @@ class InferenceEngine:
                 o3d_origin=params['origin'],
                 scale=scale,
                 
-                # Timing 
                 time_voxelization_sec=t_voxelization,
                 time_inference_sec=t_inference,
                 time_reconstruction_sec=t_reconstruction,
                 time_total_sec=t_total,
                 
-                # Result Mesh
                 mc_vertices=verts_orig,
                 mc_faces=faces_mc
             )
@@ -208,7 +208,6 @@ class InferenceEngine:
             print(f"Reconstruction failed for {obj_path}: {e}")
             return False
 
-# main
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained model (.pt or .ckpt)")

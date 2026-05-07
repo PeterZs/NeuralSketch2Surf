@@ -1,8 +1,11 @@
+"""Convert ribbon-like sketch meshes into curve-network PLY files."""
 import trimesh
 import numpy as np
 import os
+from pathlib import Path
 
 def convert_ribbon_to_edge_midpoint_path(input_path, output_path, precision=3):
+    """Extract centerline-like paths from connected ribbon mesh components."""
 
     try:
         scene = trimesh.load(input_path, force='mesh')
@@ -61,10 +64,10 @@ def convert_ribbon_to_edge_midpoint_path(input_path, output_path, precision=3):
         print(f"  [Warning] No valid edge midpoints found for {os.path.basename(input_path)}.")
         return
 
-    # 4. Export as PLY
     save_as_ply_edges(np.array(all_verts), np.array(all_edges), output_path)
 
 def save_as_ply_edges(verts, edges, filename):
+    """Write vertices and edges as an ASCII PLY curve network."""
     with open(filename, 'w') as f:
         f.write("ply\nformat ascii 1.0\n")
         f.write(f"element vertex {len(verts)}\n")
@@ -79,8 +82,8 @@ def save_as_ply_edges(verts, edges, filename):
     print(f"  [Success] Saved to {os.path.basename(filename)}")
 
 def batch_convert_folder(input_folder, output_folder=None, precision=3):
+    """Convert all supported ribbon mesh files in one folder."""
 
-    # If no output directory is specified, create a 'Convert_result_ply' folder inside the input directory by default
     if output_folder is None:
         output_folder = os.path.join(input_folder, "Convert_result_ply")
     
@@ -88,7 +91,6 @@ def batch_convert_folder(input_folder, output_folder=None, precision=3):
         os.makedirs(output_folder)
         print(f"Created output directory: {output_folder}")
 
-    # Supported file extensions
     valid_extensions = ('.glb', '.gltf', '.obj', '.stl', '.ply')
 
     files = os.listdir(input_folder)
@@ -100,7 +102,6 @@ def batch_convert_folder(input_folder, output_folder=None, precision=3):
         if filename.lower().endswith(valid_extensions):
             input_path = os.path.join(input_folder, filename)
             
-            # Construct output filename (e.g., model.glb -> model_convert.ply)
             name_without_ext = os.path.splitext(filename)[0]
             output_filename = f"{name_without_ext}_convert.ply"
             output_path = os.path.join(output_folder, output_filename)
@@ -117,11 +118,7 @@ def batch_convert_folder(input_folder, output_folder=None, precision=3):
     print(f"\nBatch processing complete. Processed {count} files.")
 
 if __name__ == "__main__":
-    
-    # Path to your input folder
-    INPUT_DIR = "sample/RibbonSculpt"  
-    
-    # you can set OUTPUT_DIR to None to use default behavior
+    INPUT_DIR = Path(__file__).resolve().parent / "sample" / "RibbonSculpt"
     OUTPUT_DIR = None 
 
     if os.path.exists(INPUT_DIR):

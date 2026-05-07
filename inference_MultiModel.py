@@ -1,3 +1,8 @@
+"""Inference helper for sketches with multiple disconnected components.
+
+This variant preserves normalized input curves and keeps multiple sufficiently
+large mesh components after Marching Cubes.
+"""
 import os
 import glob
 import argparse
@@ -7,13 +12,13 @@ import torch
 import trimesh
 from skimage import measure
 from tqdm import tqdm
-import sys
 
 from train112TVloss import SwinReconstructionModule
 
 
 
 def save_lines_to_obj(path, verts, edges):
+    """Export normalized sketch curves for visual debugging."""
 
     with open(path, 'w') as f:
         f.write("# Transformed Input Sketch (Normalized)\n")
@@ -23,8 +28,8 @@ def save_lines_to_obj(path, verts, edges):
             f.write(f"l {u+1} {v+1}\n")
 
 
-# Bresenham 3D
 def bresenham3d(p0, p1):
+    """Rasterize a 3D line segment into voxel coordinates."""
     x1, y1, z1 = map(int, p0)
     x2, y2, z2 = map(int, p1)
     dx, dy, dz = abs(x2 - x1), abs(y2 - y1), abs(z2 - z1)
@@ -63,6 +68,7 @@ def bresenham3d(p0, p1):
     return pts
 
 def parse_obj_robust(obj_path):
+    """Read OBJ vertices and recover sketch edges from line or face elements."""
     verts, edges = [], []
     with open(obj_path, 'r') as f:
         for line in f:
@@ -81,9 +87,9 @@ def parse_obj_robust(obj_path):
     return np.array(verts), edges
 
 def compute_alignment_params(verts, resolution=112, margin=1.1):
+    """Compute the canonical sketch-to-voxel transform."""
     if len(verts) == 0: return None
 
-    # 1. BBox & Center
     vmin = verts.min(axis=0)
     vmax = verts.max(axis=0)
     center = (vmin + vmax) / 2.0
@@ -91,11 +97,9 @@ def compute_alignment_params(verts, resolution=112, margin=1.1):
     
     max_extent_scalar = float(max(extent.max(), 1e-12))
     
-    # 2. Scale (Target Radius = 1.0)
     target_radius = 1.0
     scale = target_radius / (max_extent_scalar / 2.0)
     
-    # 3. Voxel Size
     R = int(resolution)
     voxel_size = (2.0 * margin) / (R - 1)
     
@@ -112,6 +116,7 @@ def compute_alignment_params(verts, resolution=112, margin=1.1):
     }
 
 def voxelize_strict_aligned(obj_path, resolution=112, margin=1.1):
+    """Convert a curve sketch OBJ into a sparse occupancy tensor."""
     verts, edges = parse_obj_robust(obj_path)
     if len(verts) == 0: return None, None
     
@@ -123,10 +128,8 @@ def voxelize_strict_aligned(obj_path, resolution=112, margin=1.1):
     voxel_size = params['voxel_size']
     R = params['resolution']
     
-    # World -> Normalized
     verts_norm = (verts - center) * scale
     
-    # Normalized -> Voxel Index
     verts_vox_float = (verts_norm - origin) / voxel_size + 1e-6
     verts_idx = np.floor(verts_vox_float).astype(np.int32)
     verts_idx = np.clip(verts_idx, 0, R - 1)
@@ -142,6 +145,7 @@ def voxelize_strict_aligned(obj_path, resolution=112, margin=1.1):
     return volume[None, None, ...], params
 
 class InferenceEngine:
+    """Run S2V-Net inference while retaining multiple output components."""
     def __init__(self, model_path, device='cuda', img_size=112, feature_size=24):
         self.device = torch.device(device)
         print(f"Loading model from: {model_path}")
@@ -168,6 +172,7 @@ class InferenceEngine:
         self.model.to(self.device)
 
     def process_and_save(self, obj_path, save_obj_path, save_npz_path, resolution=112, threshold=0.6, margin=1.1):
+        """Process one sketch and save reconstruction outputs."""
         t_start = time.time()
         
         input_np, params = voxelize_strict_aligned(obj_path, resolution, margin)
@@ -182,7 +187,6 @@ class InferenceEngine:
         save_input_norm_path = save_obj_path.replace("_recon.obj", "_input_norm.obj")
         save_lines_to_obj(save_input_norm_path, input_norm_verts, raw_edges)
 
-        # inference
         t_infer_start = time.time()
         input_tensor = torch.from_numpy(input_np).to(self.device)
         with torch.no_grad():
@@ -194,10 +198,9 @@ class InferenceEngine:
         t_inference = time.time() - t_infer_start
         
         if probs_np.max() < threshold:
-            print(f"⚠️ Empty prediction for {os.path.basename(obj_path)}")
+            print(f"Empty prediction for {os.path.basename(obj_path)}")
             return False
 
-        # Marching Cubes
         t_recon_start = time.time()
         try:
             verts_mc, faces_mc, normals_mc, values_mc = measure.marching_cubes(probs_np, level=threshold)
@@ -207,7 +210,6 @@ class InferenceEngine:
             scale = params['scale']
             center = params['center']
             
-            # Index -> Norm -> World
             verts_norm = verts_mc * voxel_size + origin
             verts_orig = verts_norm / scale + center
             
@@ -227,13 +229,9 @@ class InferenceEngine:
             t_reconstruction = time.time() - t_recon_start
             t_total = time.time() - t_start
 
-            # save NPZ
             np.savez(
                 save_npz_path,
-                # Raw Tensor
                 raw_probability_grid=probs_np,
-                
-                # Meta Data
                 center=center,
                 max_extent=params['max_extent'],
                 margin=float(params['margin']),
@@ -242,13 +240,11 @@ class InferenceEngine:
                 o3d_origin=params['origin'],
                 scale=scale,
                 
-                # Timing
                 time_voxelization_sec=t_voxelization,
                 time_inference_sec=t_inference,
                 time_reconstruction_sec=t_reconstruction,
                 time_total_sec=t_total,
                 
-                # Result Mesh
                 mc_vertices=verts_orig,
                 mc_faces=faces_mc
             )
@@ -259,7 +255,6 @@ class InferenceEngine:
             print(f"Reconstruction failed for {obj_path}: {e}")
             return False
 
-# main
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained model (.pt or .ckpt)")
