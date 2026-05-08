@@ -22,7 +22,6 @@ Amal Dev Parakkat<sup>1</sup>
 <br>
 <sup>3</sup>Univ. Grenoble Alpes, CNRS, INRIA, Grenoble INP, LJK
 <br>
-<sup>*</sup>Equal contribution
 </sub>
 
 <br>
@@ -257,7 +256,7 @@ See [tools/README.md](tools/README.md).
 If you find this project useful, please cite:
 
 ```bibtex
-@article{neuralsketch2surf2026,
+@article{ye2026neuralsketch2surf,
   title   = {NeuralSketch2Surf: Fast Neural Surfacing of Unoriented 3D Sketches},
   author  = {Ye, Hongsheng and Sureshkumar, Anandhu and Wang, Zhonghan and Cani, Marie-Paule and Hahmann, Stefanie and Bonneau, Georges-Pierre and Parakkat, Amal Dev},
   journal = {ACM Transactions on Graphics (Proceedings of SIGGRAPH)},
